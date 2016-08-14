@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>EaselJS Example: Rollovers and Drag & Drop</title>
+
+	<link href="../_assets/css/shared.css" rel="stylesheet" type="text/css"/>
+	<link href="../_assets/css/examples.css" rel="stylesheet" type="text/css"/>
+	<script src="../_assets/js/examples.js"></script>
+
+	<script src="../lib/easeljs-NEXT.combined.js"></script>
+    <script type="text/javascript" src="../lib/TextInput.js"></script>
+	<!-- We also provide hosted minified versions of all CreateJS libraries.
+	  http://code.createjs.com -->
+
+<script id="editable">
+	var canvas, stage;
+
+	var mouseTarget;	// the display object currently under the mouse, or being dragged
+	var dragStarted;	// indicates whether we are currently in a drag operation
+	var offset;
+	var update = true;
+	var arm, target, dragable, line, forceButton;
+	var beamTouch = false;
+	var sticky = false;
+	var textField;
+	var offset = 25;
+	var forcePoints = [];
+	var forceVectors = [];
+
+
+	function init() {
+		examples.showDistractor();
+		// create stage and point it to the canvas:
+		canvas = document.getElementById("testCanvas");
+
+		//check to see if we are running in a browser with touch support
+		stage = new createjs.Stage(canvas);
+
+		// enable touch interactions if supported on the current device:
+		createjs.Touch.enable(stage);
+
+		// enabled mouse over / out events
+		stage.enableMouseOver(10);
+		stage.mouseMoveOutside = true; // keep tracking the mouse even when it leaves the canvas
+
+		// load the source image:
+		var image = new Image();
+		image.src = "../_assets/art/target.png";
+		image.onload = handleImageLoad;
+
+
+	//	var pin = new Image();
+	//	pin.src = "../_assets/art/pin.png";
+	//	pin.onload = handleImageLoad;
+		    
+
+	//	var arrow = new Image();
+	//	arrow.src = "../_assets/art/arrow.png";
+	//	arrow.onload = handleImageLoad;
+
+		forceButton  = new createjs.Shape();
+ 		forceButton.graphics.beginFill("#ff0000").drawRect(100, 0, 50, 50);
+ 		stage.addChild(forceButton);
+
+forceButton.addEventListener("mousedown", function (evt) {
+				// bump the target in front of its siblings:
+				var o = evt.target;
+				o.alpha = .2
+			});
+
+		
+
+		target  = new createjs.Shape();
+ 		target.graphics
+ 		.beginFill("black").drawRect(75, 75, 450, 100)
+ 		.beginFill("#ff0000").drawRect(100, 100, 400, 50);
+ 		target.setBounds(75, 75, 450, 100);
+ 		stage.addChild(target);
+ 		console.log(target); 
+
+
+// Create and place our text field on the canvas
+textField = new TextInput();
+textField.x = 200;
+textField.y = 200;
+textField.placeHolder = "Input Field"; // updates the default text
+stage.addChild(textField);
+
+// Updates the text field to the new internal data (ie. placeholder)
+// I may allow an optional internal data watcher, but I feel if there are a large amount of 
+// fields this could become performance slow
+textField.update();
+
+line = new createjs.Shape();
+ 
+            // Add this line shape to the canvas
+            stage.addChild(line);
+            line.graphics.setStrokeStyle(1).beginStroke("rgba(0,0,0,1)");
+            line.graphics.moveTo(0, 50);
+            line.graphics.lineTo(0, 200);
+            line.graphics.endStroke();
+
+		var shearLine = new createjs.Shape();
+        // Add this line shape to the canvas
+        stage.addChild(shearLine);
+        shearLine.graphics.setStrokeStyle(1).beginStroke("rgba(0,0,0,1)");
+        shearLine.graphics.moveTo(100, 300);
+        shearLine.graphics.lineTo(500, 300);
+        shearLine.graphics.endStroke();
+
+		createjs.Ticker.on("tick", stageTick);
+	}
+
+	function stop() {
+		createjs.Ticker.removeEventListener("tick", tick);
+	}
+
+	function handleImageLoad(event) {
+		var image = event.target;
+		var bitmap;
+		var container = new createjs.Container();
+		stage.addChild(container);
+
+		// create a shape that represents the center of the daisy image:
+		var hitArea = new createjs.Shape();
+		hitArea.graphics.beginFill("#ff0000").drawCircle(0,0,20);
+		// position hitArea relative to the internal coordinate system of the target bitmap instances:
+		hitArea.x = image.width / 2;
+		hitArea.y = image.height / 2;
+
+		// create and populate the screen with random daisies:
+		for (var i = 0; i < 5; i++) {
+			if (i == 0){
+				bitmap = new createjs.Bitmap("../_assets/art/target.png");
+				bitmap.type = "pointLoad"
+			} else if (i == 1 ) {
+				bitmap = new createjs.Bitmap("../_assets/art/support.png");
+				bitmap.type = "distLoad"
+			} else if (i == 2 ) {
+				bitmap = new createjs.Bitmap("../_assets/art/pin.png");
+				bitmap.type = "pinSupport"
+			} else if (i == 3 ) {
+				bitmap = new createjs.Bitmap("../_assets/art/roller.png");
+				bitmap.type = "rollerSupport"
+			} else if (i == 4 ) {
+				bitmap = new createjs.Bitmap("../_assets/art/support.png");
+				bitmap.type = "fixedSupport"
+			}
+			
+			dragable = bitmap;
+			container.addChild(bitmap);
+			bitmap.x =  0; //canvas.width * Math.random() |
+			bitmap.y =  0; //canvas.height * Math.random() |
+			//bitmap.rotation = 360 * Math.random() | 0;
+			console.log( bitmap.image.width);
+			console.log( bitmap.image.height);
+			bitmap.regX =  25; //bitmap.image.width / 2 |
+			bitmap.regY =  25; //bitmap.image.height / 2 |
+			bitmap.scaleX = bitmap.scaleY = bitmap.scale = 1;
+			bitmap.name = "bmp_" + i;
+			bitmap.cursor = "pointer";
+
+			// assign the hit area:
+			bitmap.hitArea = hitArea;
+
+			bitmap.addEventListener("mousedown", function (evt) {
+				// bump the target in front of its siblings:
+				var o = evt.target;
+				o.parent.addChild(o);
+				o.offset = {x: o.x - evt.stageX, y: o.y - evt.stageY};
+			});
+
+			// the pressmove event is dispatched when the mouse moves after a mousedown on the target until the mouse is released.
+			bitmap.addEventListener("pressmove", function (evt) {
+				var o = evt.target;
+				o.x = evt.stageX + o.offset.x;
+				o.y = evt.stageY + o.offset.y;
+				// indicate that the stage should be updated on the next tick:
+				if (target.hitTest(o.x, o.y)) { 
+			        target.alpha = 1; 
+			        line.x = o.x;
+
+		        }
+				update = true;
+			});
+
+			bitmap.addEventListener("pressup", function(evt) { 
+				var o = evt.target;
+
+				if (target.hitTest(o.x, o.y)){
+					console.log(o.type); 
+					
+					var bounds = target.getBounds();
+					console.log(bounds);
+					if (o.y > bounds.y + bounds.height*.5 ){
+						o.y = bounds.y + bounds.height;
+					} else {
+						o.y = bounds.y;
+						
+					}
+					forcePoints.push(o.x);
+					forceVectors.push(1);
+					updateLine(forcePoints, forceVectors);
+
+					var forceVector = new createjs.Shape();
+ 
+            // Add this forceVector shape to the canvas
+            		stage.addChild(forceVector);
+           			forceVector.graphics.setStrokeStyle(1).beginStroke("rgba(0,0,0,1)");
+           			forceVector.graphics.moveTo(o.x, 50);
+            		forceVector.graphics.lineTo(o.x, 200);
+            		forceVector.graphics.endStroke();
+
+
+				}
+				if (o.type == "force" ){
+					o.x = 100;    
+				} else if (o.type == "support"){
+					o.x = 200;
+				}
+				o.y = 50;
+				
+			});
+
+			bitmap.addEventListener("rollover", function (evt) {
+				var o = evt.target;
+				o.scaleX = o.scaleY = o.scale * 1.2;
+				update = true;
+			});
+
+			bitmap.addEventListener("rollout", function (evt) {
+				var o = evt.target;
+				o.scaleX = o.scaleY = o.scale;
+				update = true;
+			});
+
+		}
+
+		examples.hideDistractor();
+		createjs.Ticker.addEventListener("tick", tick);
+	}
+
+	function tick(event) {
+		// this set makes it so the stage only re-renders when an event handler indicates a change has happened.
+
+		if (update) {
+			update = false; // only update once
+			stage.update(event);
+		}
+	}
+
+
+
+
+
+	function stageTick(event) {
+		
+		target.alpha = 0.2;
+		var bounds = target.getBounds();
+
+		
+
+		if (dragable.x > bounds.x + bounds.width  ){
+			line.x = bounds.x + bounds.width;
+		} else if ( dragable.x < bounds.x ){
+			line.x = bounds.x;
+		}
+
+		//console.log(textField.postCursorText);
+
+
+		stage.update(event);
+	}
+
+	function updateLine(locations, forces) {
+		for(var i = 0; i < locations.length; i++){
+  	        console.log(locations[i]);   
+   	    }
+   	    for(var i = 0; i < forces.length; i++){
+  	        console.log(forces[i]);   
+   	    }
+	}
+
+</script>
+
+</head>
+
+<body onload="init();">
+<header class="EaselJS">
+	<h1>Drag &amp; Drop With Hit Areas</h1>
+
+	<p>This example is the same as the DragAndDrop example, except it uses
+		<code>hitArea</code> to make only the center part of the daisy respond
+		to mouse interactions.</p>
+</header>
+
+<div>
+	<canvas id="testCanvas" width="640" height="1136"></canvas>
+</div>
+</body>
+</html>
